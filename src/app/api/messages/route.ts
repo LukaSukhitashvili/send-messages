@@ -91,8 +91,10 @@ export async function POST(request: NextRequest) {
 
       if (uploadError) {
         console.error('Image upload error:', uploadError)
-        // Continue with other images, but log the error
-        continue
+        return NextResponse.json(
+          { success: false, error: `Failed to upload image: ${uploadError.message}` },
+          { status: 500 }
+        )
       }
 
       imageRecords.push({

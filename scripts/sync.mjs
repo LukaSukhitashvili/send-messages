@@ -4,18 +4,22 @@ import path from 'path'
 import https from 'https'
 import { fileURLToPath } from 'url'
 import { dirname } from 'path'
+import 'dotenv/config'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = dirname(__filename)
 
+// CLI args
+const RUN_ONCE = process.argv.includes('--once')
+
 // Load environment variables
-const SUPABASE_URL = process.env.SUPABASE_URL || ''
+const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL || ''
 const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || ''
-const LOCAL_SYNC_PATH = process.env.LOCAL_SYNC_PATH || 'C:\\Users\\pc\\Desktop\\database'
+const LOCAL_SYNC_PATH = process.env.LOCAL_SYNC_PATH || (RUN_ONCE ? './synced-data' : 'C:\\\\Users\\\\pc\\\\Desktop\\\\database')
 const SYNC_INTERVAL_MS = parseInt(process.env.SYNC_INTERVAL_MS || '30000', 10)
 
 if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
-  console.error('Missing required environment variables: SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY')
+  console.error('Missing required environment variables: NEXT_PUBLIC_SUPABASE_URL (or SUPABASE_URL), SUPABASE_SERVICE_ROLE_KEY')
   process.exit(1)
 }
 
@@ -49,7 +53,7 @@ function saveSyncState(syncedIds) {
 }
 
 function sanitizeUsername(username) {
-  return username.replace(/[<>:"/\\|?*\x00-\x1F]/g, '_').trim()
+  return username.replace(/[<>:\"/\\\\|?*\x00-\x1F]/g, '_').trim()
 }
 
 function ensureDirectory(dirPath) {
@@ -143,18 +147,28 @@ async function syncSingleMessage(message) {
     return
   }
 
+  console.log(`  Found ${images?.length || 0} image(s) for message ${message.id}`)
+
   if (images && images.length > 0) {
     for (const image of images) {
       try {
-        const { data: urlData } = supabase.storage
+        console.log(`  Attempting to download: ${image.file_name} (path: ${image.file_path})`)
+        const { data: urlData, error: urlError } = await supabase.storage
           .from('message-images')
           .createSignedUrl(image.file_path, 3600)
+
+        if (urlError) {
+          console.error(`  Signed URL error for ${image.id}:`, urlError)
+          continue
+        }
 
         if (urlData?.signedUrl) {
           const ext = path.extname(image.file_name) || '.jpg'
           const imageFile = path.join(messageDir, `${image.id}${ext}`)
           await downloadFile(urlData.signedUrl, imageFile)
           console.log(`  Downloaded image: ${image.file_name}`)
+        } else {
+          console.error(`  No signed URL returned for ${image.id}`)
         }
       } catch (error) {
         console.error(`  Failed to download image ${image.id}:`, error)
@@ -173,24 +187,28 @@ async function syncSingleMessage(message) {
 }
 
 async function main() {
-  console.log('Starting Cloud Mailbox Local Sync')
+  console.log('Starting Cloud Mailbox Sync')
   console.log(`Sync path: ${LOCAL_SYNC_PATH}`)
-  console.log(`Poll interval: ${SYNC_INTERVAL_MS}ms`)
+  console.log(`Mode: ${RUN_ONCE ? 'once' : 'continuous'}`)
 
   ensureDirectory(LOCAL_SYNC_PATH)
 
   const syncedIds = loadSyncState()
   console.log(`Loaded ${syncedIds.size} previously synced message(s)`)
 
-  // Initial sync
   await syncMessages(syncedIds)
 
-  // Poll for new messages
-  setInterval(async () => {
-    await syncMessages(syncedIds)
-  }, SYNC_INTERVAL_MS)
+  if (!RUN_ONCE) {
+    // Poll for new messages
+    setInterval(async () => {
+      await syncMessages(syncedIds)
+    }, SYNC_INTERVAL_MS)
 
-  console.log('Sync running... Press Ctrl+C to stop')
+    console.log('Sync running... Press Ctrl+C to stop')
+  } else {
+    console.log('Sync complete.')
+    process.exit(0)
+  }
 }
 
 // Handle graceful shutdown
