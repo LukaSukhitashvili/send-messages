@@ -11,6 +11,7 @@ const __dirname = dirname(__filename)
 
 // CLI args
 const RUN_ONCE = process.argv.includes('--once')
+const RECHECK = process.argv.includes('--recheck')
 
 // Load environment variables
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL || ''
@@ -28,6 +29,10 @@ const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY)
 const SYNC_STATE_FILE = path.join(__dirname, 'sync-state.json')
 
 function loadSyncState() {
+  if (RECHECK) {
+    console.log('⚡ Recheck mode: ignoring sync-state, will verify all messages')
+    return new Set()
+  }
   try {
     if (fs.existsSync(SYNC_STATE_FILE)) {
       const data = fs.readFileSync(SYNC_STATE_FILE, 'utf-8')
@@ -201,12 +206,15 @@ async function syncSingleMessage(message) {
 async function main() {
   console.log('Starting Cloud Mailbox Sync')
   console.log(`Sync path: ${LOCAL_SYNC_PATH}`)
-  console.log(`Mode: ${RUN_ONCE ? 'once' : 'continuous'}`)
+  const mode = RECHECK ? 'recheck' : (RUN_ONCE ? 'once' : 'continuous')
+  console.log(`Mode: ${mode}`)
 
   ensureDirectory(LOCAL_SYNC_PATH)
 
   const syncedIds = loadSyncState()
-  console.log(`Loaded ${syncedIds.size} previously synced message(s)`)
+  if (!RECHECK) {
+    console.log(`Loaded ${syncedIds.size} previously synced message(s)`)
+  }
 
   await syncMessages(syncedIds)
 
