@@ -96,29 +96,41 @@ async function syncMessages(syncedIds) {
     }
 
     if (!messages || messages.length === 0) {
-      console.log('No messages found')
+      console.log('No messages found in database')
       return
     }
 
     const newMessages = messages.filter((msg) => !syncedIds.has(msg.id))
     
     if (newMessages.length === 0) {
+      if (!RUN_ONCE) {
+        console.log('No new messages (all caught up)')
+      }
       return
     }
 
-    console.log(`Found ${newMessages.length} new message(s) to sync`)
+    const isCatchUp = syncedIds.size > 0 && !RUN_ONCE
+    if (isCatchUp) {
+      console.log(`📥 Catching up: ${newMessages.length} message(s) waiting from when laptop was offline`)
+    } else {
+      console.log(`Found ${newMessages.length} new message(s) to sync`)
+    }
 
     for (const message of newMessages) {
       try {
         await syncSingleMessage(message)
         syncedIds.add(message.id)
-        console.log(`Synced message ${message.id} from ${message.username}`)
+        console.log(`✓ Synced message ${message.id} from ${message.username}`)
       } catch (error) {
-        console.error(`Failed to sync message ${message.id}:`, error)
+        console.error(`✗ Failed to sync message ${message.id}:`, error)
       }
     }
 
     saveSyncState(syncedIds)
+    
+    if (isCatchUp) {
+      console.log(`✓ Catch-up complete: ${newMessages.length} message(s) synced`)
+    }
   } catch (error) {
     console.error('Sync error:', error)
   }

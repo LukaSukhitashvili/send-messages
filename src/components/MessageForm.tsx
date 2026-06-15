@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useRef } from 'react'
 
 export default function MessageForm() {
   const [username, setUsername] = useState('')
@@ -8,6 +8,7 @@ export default function MessageForm() {
   const [images, setImages] = useState<File[]>([])
   const [status, setStatus] = useState<'idle' | 'submitting' | 'success' | 'error'>('idle')
   const [errorMessage, setErrorMessage] = useState('')
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || [])
@@ -18,6 +19,12 @@ export default function MessageForm() {
 
   const removeImage = (index: number) => {
     setImages(images.filter((_, i) => i !== index))
+  }
+
+  const resetFileInput = () => {
+    if (fileInputRef.current) {
+      fileInputRef.current.value = ''
+    }
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -43,6 +50,7 @@ export default function MessageForm() {
         setUsername('')
         setMessage('')
         setImages([])
+        resetFileInput()
         setTimeout(() => setStatus('idle'), 3000)
       } else {
         setStatus('error')
@@ -121,6 +129,7 @@ export default function MessageForm() {
           <input
             type="file"
             id="images"
+            ref={fileInputRef}
             accept="image/*"
             multiple
             onChange={handleImageChange}
