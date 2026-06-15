@@ -1,0 +1,14 @@
+{
+  "name": "cloud-mailbox-sync",
+  "version": "1.0.0",
+  "description": "Local sync script for Cloud Mailbox",
+  "type": "module",
+  "main": "sync.mjs",
+  "scripts": {
+    "start": "node sync.mjs",
+    "dev": "node --watch sync.mjs"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.39.0"
+  }
+}
